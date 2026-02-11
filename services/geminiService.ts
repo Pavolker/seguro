@@ -34,19 +34,40 @@ export async function getGeminiExecutiveAnalysis(results: DiagnosisResults): Pro
     Responda em Português do Brasil.
   `;
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // Adicionar timeout para evitar travamento
-    const timeoutPromise = new Promise<string>((_, reject) => {
-      setTimeout(() => reject(new Error("Timeout: A análise demorou muito tempo")), 30000);
-    });
-
-    const analysisPromise = (async () => {
+  // Função auxiliar com retry e backoff exponencial
+  async function generateWithRetry(model: any, prompt: string, retries = 3, delay = 2000): Promise<string> {
+    try {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
+      return text;
+    } catch (error: any) {
+      if (retries > 0 && (
+          error?.message?.includes('429') || 
+          error?.message?.includes('quota') || 
+          error?.message?.includes('RESOURCE_EXHAUSTED') ||
+          error?.status === 429
+      )) {
+        console.warn(`⚠️ Cota excedida ou Rate Limit. Tentando novamente em ${delay/1000}s... (Tentativas restantes: ${retries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return generateWithRetry(model, prompt, retries - 1, delay * 2);
+      }
+      throw error;
+    }
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Atualizado para gemini-flash-latest que demonstrou estabilidade nos testes
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+    // Adicionar timeout global para evitar travamento
+    const timeoutPromise = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error("Timeout: A análise demorou muito tempo")), 45000); // Aumentado para 45s para permitir retries
+    });
+
+    const analysisPromise = (async () => {
+      const text = await generateWithRetry(model, prompt);
 
       if (!text || text.trim() === "") {
         throw new Error("Resposta vazia da API");
@@ -71,13 +92,14 @@ export async function getGeminiExecutiveAnalysis(results: DiagnosisResults): Pro
     if (error?.message?.includes('API_KEY_INVALID') || error?.message?.includes('API key')) {
       return "Erro: Chave de API inválida. Verifique se a chave está correta no arquivo .env.local";
     }
-    if (error?.message?.includes('quota') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-      return "Erro: Limite de requisições da API excedido. Tente novamente em alguns minutos.";
+    if (error?.message?.includes('quota') || error?.message?.includes('RESOURCE_EXHAUSTED') || error?.message?.includes('429')) {
+      return "⚠️ O sistema está sobrecarregado no momento (Muitas requisições). Por favor, aguarde 1 minuto e tente novamente.";
     }
     if (error?.message?.includes('Timeout')) {
       return "Erro: A análise demorou muito tempo. Por favor, tente novamente.";
     }
     if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+      console.error("Erro de conexão detectado. Verifique DNS, VPN, AdBlockers ou firewall.");
       return "Erro de conexão: Verifique sua conexão com a internet e tente novamente.";
     }
 
