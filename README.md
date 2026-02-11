@@ -92,9 +92,41 @@ Os arquivos otimizados serão gerados na pasta `dist/`.
 4. **Gestão de Dados** - Proteção e LGPD
 5. **Controles & Mitigação** - Controles internos
 
+## 🔄 Atualizações Recentes
+
+### v1.1 - Correção de Análise de IA (Fevereiro 2026)
+
+✅ **Problema Resolvido:** Análise de IA travada após responder questionário
+
+**Correções implementadas:**
+- Substituído pacote `@google/genai` por `@google/generative-ai` (oficial)
+- Corrigida sintaxe da API do Google Gemini
+- Adicionado timeout de 30 segundos para evitar travamentos
+- Melhorado tratamento de erros com mensagens específicas
+- Adicionado indicador visual de loading durante análise
+
+**Documentação adicional:**
+- 📖 [CORREÇÃO_ANALISE_IA.md](./CORREÇÃO_ANALISE_IA.md) - Detalhes técnicos da correção
+- 🚀 [GUIA_DEPLOY_NETLIFY.md](./GUIA_DEPLOY_NETLIFY.md) - Guia completo de deploy
+
+## 🐛 Troubleshooting
+
+### Análise de IA não funciona
+
+1. Verifique se `VITE_GEMINI_API_KEY` está configurada
+2. Confirme que a chave da API é válida no [Google AI Studio](https://makersuite.google.com/app/apikey)
+3. Verifique o console do navegador (F12) para erros
+4. Consulte [CORREÇÃO_ANALISE_IA.md](./CORREÇÃO_ANALISE_IA.md) para mais detalhes
+
+### Build falha
+
+1. Certifique-se de ter Node.js 18+
+2. Delete `node_modules` e `package-lock.json`, depois rode `npm install`
+3. Limpe o cache: `npm cache clean --force`
+
 ## 👨‍💻 Desenvolvedor
 
-**PVolker** - versão 1.0
+**PVolker** - versão 1.1
 
 ## 📄 Licença
 

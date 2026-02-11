@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { DiagnosisResults } from "../types";
 
 export async function getGeminiExecutiveAnalysis(results: DiagnosisResults): Promise<string> {
@@ -7,11 +7,8 @@ export async function getGeminiExecutiveAnalysis(results: DiagnosisResults): Pro
 
   if (!apiKey) {
     console.error("VITE_GEMINI_API_KEY not found in environment variables");
-    throw new Error("API key not configured");
+    return "Erro: Chave de API não configurada. Verifique o arquivo .env.local";
   }
-
-  const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-3-flash-preview';
 
   const prompt = `
     Aja como um consultor sênior de GRC (Governança, Risco e Conformidade) especializado no setor de seguros.
@@ -38,13 +35,52 @@ export async function getGeminiExecutiveAnalysis(results: DiagnosisResults): Pro
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: prompt,
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    // Adicionar timeout para evitar travamento
+    const timeoutPromise = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error("Timeout: A análise demorou muito tempo")), 30000);
     });
-    return response.text || "Não foi possível gerar a análise no momento.";
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Erro ao conectar com o motor de IA para análise executiva.";
+
+    const analysisPromise = (async () => {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      if (!text || text.trim() === "") {
+        throw new Error("Resposta vazia da API");
+      }
+
+      return text;
+    })();
+
+    // Race entre a análise e o timeout
+    const text = await Promise.race([analysisPromise, timeoutPromise]);
+    return text;
+
+  } catch (error: any) {
+    console.error("Gemini API Error Details:", {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      error: error
+    });
+
+    // Mensagens de erro mais específicas
+    if (error?.message?.includes('API_KEY_INVALID') || error?.message?.includes('API key')) {
+      return "Erro: Chave de API inválida. Verifique se a chave está correta no arquivo .env.local";
+    }
+    if (error?.message?.includes('quota') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+      return "Erro: Limite de requisições da API excedido. Tente novamente em alguns minutos.";
+    }
+    if (error?.message?.includes('Timeout')) {
+      return "Erro: A análise demorou muito tempo. Por favor, tente novamente.";
+    }
+    if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+      return "Erro de conexão: Verifique sua conexão com a internet e tente novamente.";
+    }
+
+    return `Erro ao gerar análise: ${error?.message || 'Erro desconhecido'}. Por favor, tente novamente.`;
   }
 }

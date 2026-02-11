@@ -59,11 +59,24 @@ const recommendations: Record<PillarName, { description: string; actions: string
 };
 
 const Dashboard: React.FC<Props> = ({ results, onReset }) => {
-  const [aiAnalysis, setAiAnalysis] = useState<string>('Carregando análise via IA...');
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<boolean>(true);
   const status = getStatusFromScore(results.totalGRC);
 
   useEffect(() => {
-    getGeminiExecutiveAnalysis(results).then(setAiAnalysis);
+    setIsLoadingAnalysis(true);
+    setAiAnalysis('Carregando análise via IA...');
+
+    getGeminiExecutiveAnalysis(results)
+      .then((analysis) => {
+        setAiAnalysis(analysis);
+        setIsLoadingAnalysis(false);
+      })
+      .catch((error) => {
+        console.error('Erro ao carregar análise:', error);
+        setAiAnalysis('Erro ao carregar análise. Por favor, recarregue a página.');
+        setIsLoadingAnalysis(false);
+      });
   }, [results]);
 
   // Fix: Explicitly cast entries to fix arithmetic type error for sorting gaps
@@ -120,6 +133,12 @@ const Dashboard: React.FC<Props> = ({ results, onReset }) => {
           <div className="flex items-center gap-2 mb-4">
             <BrainCircuit className="w-6 h-6 text-indigo-600" />
             <h3 className="text-xl font-bold text-slate-800">Análise do Time Centauro</h3>
+            {isLoadingAnalysis && (
+              <div className="ml-auto flex items-center gap-2 text-sm text-slate-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
+                Analisando...
+              </div>
+            )}
           </div>
           <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed italic">
             {aiAnalysis.split('\n').map((line, i) => (
